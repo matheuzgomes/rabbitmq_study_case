@@ -1,6 +1,6 @@
+import logging
 import time
 from collections.abc import Callable
-from typing import Any
 
 import pika
 import pika.exceptions
@@ -26,22 +26,20 @@ class MessagingClient:
                 return
             except pika.exceptions.AMQPConnectionError as e:
                 attempts += 1
-                print(
+                logging.error(
                     f"Connection failed: {e}. Retrying {attempts}/{self.retry_attempts}..."
                 )
                 time.sleep(self.retry_delay)
         raise Exception("Could not connect to RabbitMQ after retries.")
 
-    def producer(
-        self, exchange: str, routing_key: str, body: Any
-    ):
+    def producer(self, exchange: str, routing_key: str, body: str | bytes):
         try:
             self.channel.exchange_declare(exchange=exchange, exchange_type="fanout")
             self.channel.basic_publish(
                 exchange=exchange, routing_key=routing_key, body=body
             )
         except pika.exceptions.AMQPError as e:
-            print(f"Failed to publish message: {e}")
+            logging.error(f"Failed to publish message: {e}")
 
     def consumer(self, queue: str, callback: Callable, exchange: str, routing_key: str):
         try:
@@ -52,13 +50,13 @@ class MessagingClient:
             )
             self.channel.basic_consume(
                 queue=queue,
-                auto_ack=False,
                 on_message_callback=self._wrap_callback(callback),
+                auto_ack=False,
             )
-            print("Starting consumer...")
+            logging.info("Starting consumer...")
             self.channel.start_consuming()
         except pika.exceptions.AMQPError as e:
-            print(f"Failed to consume messages: {e}")
+            logging.info(f"Failed to consume messages: {e}")
             self._connect()
 
     def _wrap_callback(self, callback: Callable):
@@ -67,7 +65,7 @@ class MessagingClient:
                 callback(ch, method, properties, body)
                 ch.basic_ack(delivery_tag=method.delivery_tag)
             except Exception as e:
-                print(f"Error processing message: {e}")
+                logging.info(f"Error processing message: {e}")
                 ch.basic_nack(delivery_tag=method.delivery_tag, requeue=True)
 
         return wrapped_callback
