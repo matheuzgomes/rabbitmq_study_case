@@ -1,9 +1,10 @@
 from ninja_extra import NinjaExtraAPI, api_controller, route
 
+from stock_model_app.infrastructure import MessagingClient
+
 from .connector.stock_data_connector import StockDataConnector
 from .exception_handler import GlobalExceptionHandler
-from .infrastructure import MessagingClient
-from .services import GetAllStocksService, ProcessQuotationsService
+from .services import GetAllStocksService
 
 app = NinjaExtraAPI()
 
@@ -12,41 +13,22 @@ app = NinjaExtraAPI()
 class StockPriceController:
     def __init__(self) -> None:
         self.get_quotation_service = GetAllStocksService()
-        self.messaging_client = MessagingClient("localhost")
-        self.process_quotation_service = ProcessQuotationsService()
-
-    @route.get(
-        path="/",
-        summary="Get quotations",
-        description="Get quotations",
-    )
-    async def get_quotation(self):
-        try:
-            data = await self.get_quotation_service.execute(
-                stock_data_connector=StockDataConnector(),
-                messaging_client=self.messaging_client,
-            )
-
-            return data
-        except Exception as error:
-            raise GlobalExceptionHandler().handle(error) from error
 
     @route.post(
         path="/",
         summary="Insert quotations",
         description="Insert quotations",
     )
-    def load_quotations(self):
+    async def get_quotation(self):
         try:
-            self.messaging_client.consumer(
-                "post_quotations",
-                self.process_quotation_service.execute,
-                "get_quotations",
-                "quotations.create",
+            client = MessagingClient("localhost")
+            data = await self.get_quotation_service.execute(
+                stock_data_connector=StockDataConnector(),
+                messaging_client=client,
             )
-            return {"ok": 200}
+
+            return data
         except Exception as error:
             raise GlobalExceptionHandler().handle(error) from error
-
 
 app.register_controllers(StockPriceController)

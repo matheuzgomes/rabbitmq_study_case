@@ -1,7 +1,8 @@
-from typing import Callable, Any
-import pika
 import time
+from collections.abc import Callable
+from typing import Any
 
+import pika
 import pika.exceptions
 
 
